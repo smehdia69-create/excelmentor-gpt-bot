@@ -1,0 +1,49 @@
+from telegram.ext import Updater, MessageHandler, Filters
+import openai
+from fpdf import FPDF
+import datetime
+
+TELEGRAM_TOKEN = "7211135171:AAE-rHUfKwDxobsn-Qb3OSdqSA58jgh37Kc"
+OPENAI_API_KEY = "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"
+
+openai.api_key = OPENAI_API_KEY
+
+class PDF(FPDF):
+    def header(self):
+        self.set_font("Arial", 'B', 12)
+        self.cell(0, 10, "🧠 GPT Response", ln=True, align='C')
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Arial", "I", 8)
+        self.cell(0, 10, f"Page {self.page_no()}", align='C')
+
+def create_pdf(text, filename="reply.pdf"):
+    pdf = PDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Arial", size=11)
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    pdf.multi_cell(0, 10, f"Generated: {timestamp}\n\n{text}")
+    pdf.output(filename)
+
+def handle_message(update, context):
+    user_text = update.message.text
+    chat_id = update.message.chat_id
+
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "user", "content": user_text},
+            {"role": "system", "content": "Respond in English only, with detailed explanation."}
+        ]
+    )
+
+    reply_text = response["choices"][0]["message"]["content"]
+    create_pdf(reply_text, "reply.pdf")
+    context.bot.send_document(chat_id=chat_id, document=open("reply.pdf", "rb"), caption="📄 Your GPT response is ready!")
+
+updater = Updater(token=TELEGRAM_TOKEN, use_context=True)
+dispatcher = updater.dispatcher
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+updater.start_polling()
